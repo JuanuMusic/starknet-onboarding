@@ -2,7 +2,7 @@
 
 from starkware.cairo.common.cairo_builtins import HashBuiltin
 from starkware.starknet.common.syscalls import (get_caller_address)
-from starkware.cairo.common.math import (assert_le)
+from starkware.cairo.common.math import (assert_le, assert_le_felt)
 
 # We want to store more info than just the `star` size.
 # We are going to give them a name and a size
@@ -14,6 +14,11 @@ from starkware.cairo.common.math import (assert_le)
 # - size
 # Both members are of type `felt`
 # https://www.cairo-lang.org/docs/reference/syntax.html#structs
+struct Star:
+    member name: felt
+    member size: felt
+end
+
 
 @storage_var
 func dust(address: felt) -> (amount: felt):
@@ -21,13 +26,16 @@ end
 
 # TODO
 # Update the `star` storage to store `Star` instead of `felt`
+@storage_var
+func star(address: felt, slot: felt) -> (star: Star):
+end
 
 @storage_var
 func slot(address: felt) -> (slot: felt):
 end
 
 @event
-func a_star_is_born(account: felt, slot: felt, size: Star):
+func a_star_is_born(account: felt, slot: felt, createdStar: Star):
 end
 
 @external
@@ -44,6 +52,39 @@ end
 # TODO
 # Update the `light_star` external so it take a `Star` struct instead of the amount of dust
 # Caller `dust` storage must be deducted form a amount equal to the star size
+# This external allow an user to create a `star` by destroying an amount of `dust`
+# The resulting star will have a `size` equal to the amount of `dust` used
+@external
+func light_star{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(
+        newStar: Star):
+    # TODO
+    # Get the caller address
+    let (caller) = get_caller_address()
+
+    # Get the amount on dust owned by the caller
+    let (balance) = dust.read(caller)
+
+    # Make sure this amount is at least equal to `dust_amount`
+    assert_le_felt(newStar.size, balance)
+
+    # Get the caller next available `slot`
+    let (currentSlot) = slot.read(caller)
+
+    # Update the amount of dust owned by the caller
+    let newDust = balance - newStar.size
+    dust.write(caller, newDust)
+
+    # Register the newly created star
+    star.write(caller, currentSlot, newStar)
+
+    # Increment the caller next available slot
+    slot.write(caller, currentSlot + 1)
+
+    # Emit an `a_star_is_born` even with appropiate valued
+    a_star_is_born.emit(caller, currentSlot, newStar)
+
+    return ()
+end
 
 @view
 func view_dust{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(address: felt) -> (
@@ -55,6 +96,10 @@ end
 # TODO
 # Create a view for `star`
 # It must return an instance of `Star` instead of a `felt`
+@view
+func view_star{syscall_ptr: felt*, pedersen_ptr: HashBuiltin*, range_check_ptr}(address: felt, slot: felt) -> (star: Star):
+    return star.read(address, slot)
+end
 
 @view
 func view_slot{syscall_ptr : felt*, pedersen_ptr : HashBuiltin*, range_check_ptr}(address: felt) -> (
