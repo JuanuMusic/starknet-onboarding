@@ -8,6 +8,10 @@ from starkware.starknet.common.syscalls import (get_caller_address)
 # https://starknet.io/documentation/contracts/#contracts_storage
 # https://www.cairo-lang.org/docs/hello_starknet/intro.html
 
+@storage_var
+func dust(address: felt) -> (balance: felt):
+end
+
 # This code block define an `external` function
 # It can be called by other contracts (wallet or other)
 @external
